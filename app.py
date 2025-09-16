@@ -1,61 +1,153 @@
 import streamlit as st
-import google.generativeai as genai
-import os
 from dotenv import load_dotenv
+import os
+import google.generativeai as genai
 import PyPDF2 as pdf
 
+# --------------------------
+# Custom CSS loader
+# --------------------------
+def load_local_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+# --------------------------
+# Page Configuration
+# --------------------------
+st.set_page_config(page_title="AI Resume Analyzer", layout="wide")
+
+# Load CSS safely
+try:
+    load_local_css("style.css")
+except FileNotFoundError:
+    st.warning("⚠️ style.css not found. Using default Streamlit theme.")
+
+# --------------------------
+# Load environment variables
+# --------------------------
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+api_key = os.getenv("GOOGLE_API_KEY")
 
-# Function to get response from Gemini
-def get_gemini_response(input_prompt):
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    response = model.generate_content(input_prompt)
-    return response.text
+if not api_key:
+    st.error("❌ GOOGLE_API_KEY not found. Please add it to your .env file.")
+else:
+    genai.configure(api_key=api_key)
 
-# Function to extract text from a PDF
-def input_pdf_text(uploaded_file):
-    reader = pdf.PdfReader(uploaded_file)
-    text = ""
-    for page in range(len(reader.pages)):
-        page_content = reader.pages[page]
-        text += str(page_content.extract_text())
-    return text
+# --------------------------
+# Header
+# --------------------------
+st.title(" AI Resume Analyzer")
+st.markdown("""
+Welcome! Get a competitive edge in your job search.  
+Upload your resume and paste a job description below to see how well you match the role.  
+Our AI will provide an ATS score and actionable feedback to help you land your dream job.
+""")
 
-# --- Streamlit App ---
-st.set_page_config(page_title="AI Resume Analyzer")
-st.header("AI Resume Analyzer")
+try:
+    st.divider()
+except AttributeError:  # For Streamlit < 1.22
+    st.markdown("---")
 
-jd = st.text_area("Paste the Job Description here", height=150)
-uploaded_file = st.file_uploader("Upload your resume (PDF)...", type=["pdf"])
+# --------------------------
+# Helper function: Extract PDF text
+# --------------------------
+def get_pdf_text(pdf_file):
+    """Extracts text from an uploaded PDF file."""
+    try:
+        reader = pdf.PdfReader(pdf_file)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() or ""
+        return text
+    except Exception as e:
+        st.error(f"Error reading PDF file: {e}")
+        return None
 
-if uploaded_file is not None:
-    st.success("PDF Uploaded Successfully!")
+# --------------------------
+# Gemini API call
+# --------------------------
+def get_gemini_response(input_text):
+    """Calls the Gemini API to analyze the resume and job description."""
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(input_text)
+        # Safer response handling
+        return getattr(response, "text", response.candidates[0].content.parts[0].text if response.candidates else "")
+    except Exception as e:
+        st.error(f"Error calling Gemini API: {e}")
+        return None
 
-submit = st.button("Analyze My Resume")
+# --------------------------
+# Application UI
+# --------------------------
+col1, col2 = st.columns([2, 1])
 
-if submit:
-    if uploaded_file is not None and jd:
-        with st.spinner("Analyzing..."):
-            resume_text = input_pdf_text(uploaded_file)
-            input_prompt = f"""
-            Act as an experienced Applicant Tracking System (ATS) and a highly skilled tech recruiter.
-            Your task is to evaluate the provided resume against the given job description.
+with col1:
+    jd = st.text_area("📌 Paste the Job Description here", height=200)
 
-            Job Description:
-            {jd}
+with col2:
+    uploaded_file = st.file_uploader("📂 Upload your resume (PDF)...", type="pdf")
+    if uploaded_file is not None:
+        st.success("✅ PDF Uploaded Successfully!")
 
-            Resume:
-            {resume_text}
+# Add Analyze button
+analyze_button = st.button("🚀 Analyze Resume")
 
-            Please provide a detailed analysis with the following structure:
-            1.  **ATS Match Score:** Give a percentage score of how well the resume matches the job description.
-            2.  **Missing Keywords:** List the critical keywords and skills from the job description that are missing from the resume.
-            3.  **Profile Summary Analysis:** Evaluate the resume's summary. Is it impactful? Does it align with the job role?
-            4.  **Suggestions for Improvement:** Provide specific, actionable advice on how to improve the resume to better match this job description and pass through an ATS. Format this as a bulleted list.
-            """
-            response = get_gemini_response(input_prompt)
-            st.subheader("Analysis Report")
-            st.markdown(response)
+# --------------------------
+# Analysis Logic
+# --------------------------
+if analyze_button:
+    if not api_key:
+        st.warning("Please set your GOOGLE_API_KEY in the .env file before analyzing.")
+    elif uploaded_file is None:
+        st.warning("Please upload your resume.")
+    elif not jd.strip():
+        st.warning("Please paste the job description.")
     else:
-        st.warning("Please upload a resume and paste a job description.")
+        with st.spinner("Analyzing... Our AI is reviewing your documents."):
+            resume_text = get_pdf_text(uploaded_file)
+            if resume_text:
+                # Input prompt for Gemini
+                input_prompt = f"""
+Act as a very experienced ATS (Applicant Tracking System) with a deep understanding of tech roles,
+especially in software engineering, data science, and data analysis.
+Your task is to evaluate the provided resume against the given job description with high accuracy.
+
+You must perform a detailed analysis and provide the following in a structured format:
+1. **ATS Match Score:** A percentage representing how well the resume matches the job description.
+2. **Missing Keywords:** A list of critical keywords from the job description that are missing from the resume.
+3. **Profile Summary:** A brief, professional summary of the candidate's profile based on the resume.
+4. **Improvement Suggestions:** Actionable, bullet-pointed advice on how to improve the resume to better match this specific job description.
+
+Resume Text:
+{resume_text}
+
+Job Description:
+{jd}
+                """
+                analysis_result = get_gemini_response(input_prompt)
+
+                if analysis_result:
+                    st.subheader("📊 Analysis Report")
+                    st.markdown(
+                        f"""
+                        <div class="report-card">
+                            <div class="report-header">AI-Powered Resume Analysis</div>
+                            <div class="report-content">
+                                {analysis_result}
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+# --------------------------
+# Footer
+# --------------------------
+try:
+    st.divider()
+except AttributeError:
+    st.markdown("---")
+
+st.markdown("""
+---
+*Built with Python, Streamlit, and the Google Gemini API.*
+""")

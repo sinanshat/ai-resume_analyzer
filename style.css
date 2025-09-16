@@ -1,0 +1,52 @@
+/* General page styling */
+body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fb;
+    color: #333;
+}
+
+/* Card container */
+.report-card {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0px 2px 8px rgba(0,0,0,0.08);
+    padding: 24px;
+    margin-top: 20px;
+    transition: all 0.3s ease-in-out;
+}
+
+/* Hover effect */
+.report-card:hover {
+    box-shadow: 0px 4px 16px rgba(0,0,0,0.12);
+}
+
+/* Header inside the card */
+.report-header {
+    font-size: 20px;
+    font-weight: 600;
+    color: #0a66c2; /* LinkedIn blue */
+    border-bottom: 1px solid #e6e6e6;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+}
+
+/* Report content */
+.report-content {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #444;
+}
+
+/* Emphasize bullet lists */
+.report-content ul {
+    padding-left: 20px;
+}
+
+.report-content li {
+    margin-bottom: 8px;
+}
+
+/* Subtle emphasis on strong text */
+.report-content strong {
+    color: #0a66c2;
+}
